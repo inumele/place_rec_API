@@ -1,10 +1,17 @@
 import pandas as pd
+import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn import preprocessing
 import math
 
 
 def distance(point1, point2):
     return math.sqrt((point2[0] - point1[0]) ** 2 + (point2[1] - point1[1]) ** 2)
+
+def to_list(inp):
+    res = [float(coord) for coord in inp[1:len(inp)-1].split(', ')]
+
+    return res
 
 
 class RecommendationEngine:
@@ -24,7 +31,7 @@ class RecommendationEngine:
         similar_score = similar_score.sort_values(ascending=False)
         return similar_score
 
-    def get_places(self, user_ratings, coords):
+    def get_places(self, user_ratings, user_coords):
         similar_places = pd.DataFrame()
         place_ids = []
         for place, rating in user_ratings:
@@ -32,17 +39,26 @@ class RecommendationEngine:
             arr = pd.Series(self.get_similar_places(place, rating))
             similar_places = pd.concat([similar_places, arr.to_frame().T], ignore_index=True, axis=0)
 
-        recommendations = similar_places.sum().sort_values(ascending=False).index.tolist()
-        # print(recommendations)
-        # for i in range(5):
-        #     while recommendations[i] in place_ids:
-        #         del recommendations[i]
+        recs = pd.DataFrame(similar_places.sum().sort_values(ascending=False), columns=['sim_kf'])
+        recs = pd.merge(recs, self.places[['place_id', 'coords']], on='place_id').set_index('place_id')
+        recs['coords'] = recs['coords'].apply(to_list)
+        recs['distance'] = recs['coords'].apply(distance, args=[user_coords])
+
+        min_max_scaler = preprocessing.MinMaxScaler()
+        recs[['sim_kf', 'distance']] = min_max_scaler.fit_transform(recs[['sim_kf', 'distance']])
+
+        print(recs.sort_values(by='distance').head(100))
+
+        recs['sim_kf'] = recs['sim_kf'] - recs['distance']
+        recs = recs.drop(columns=['coords', 'distance']).sort_values(by='sim_kf', ascending=False)
+
+        print(recs.sort_values(by='sim_kf', ascending=False).head(100))
+
+        recommendations = recs.index.tolist()
 
         res = pd.DataFrame()
         for id_ in recommendations:
             row = self.places.loc[self.places['place_id'] == id_]
             res = pd.concat([res, row], ignore_index=True)
-        res['distance'] = res['coords'].apply(distance, args=coords)
-        print(res.head())
 
         return res
