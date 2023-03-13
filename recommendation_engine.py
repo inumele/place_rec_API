@@ -21,7 +21,6 @@ class RecommendationEngine:
         self.ratings = pd.merge(self.places.drop(columns='rating'), self.ratings_inp)
         self.user_ratings = pd.pivot_table(self.ratings, index='person_id', columns='place_id', values='rating')
         self.user_ratings = self.user_ratings.dropna(thresh=5, axis=1).fillna(0)
-        print(self.user_ratings)
         self.item_similarity = cosine_similarity(self.user_ratings.T)
         self.item_similarity_df = pd.DataFrame(self.item_similarity, index=self.user_ratings.columns,
                                                columns=self.user_ratings.columns)
@@ -31,7 +30,7 @@ class RecommendationEngine:
         similar_score = similar_score.sort_values(ascending=False)
         return similar_score
 
-    def get_places(self, user_ratings, user_coords):
+    def get_places(self, user_ratings, user_coords, chosen_categories):
         similar_places = pd.DataFrame()
         place_ids = []
         for place, rating in user_ratings:
@@ -49,18 +48,22 @@ class RecommendationEngine:
         min_max_scaler = preprocessing.MinMaxScaler()
         recs['sim_kf'] = min_max_scaler.fit_transform(np.array(recs['sim_kf']).reshape(-1, 1))
 
-        print(recs.sort_values(by='distance').head(100))
-
         recs['sim_kf'] = recs['sim_kf'] / recs['distance']
         recs = recs.drop(columns=['coords', 'distance']).sort_values(by='sim_kf', ascending=False)
-
-        print(recs.sort_values(by='sim_kf', ascending=False).head(100))
 
         recommendations = recs.index.tolist()
 
         res = pd.DataFrame()
+        chosen_categories_copy = chosen_categories
         for id_ in recommendations:
             row = self.places.loc[self.places['place_id'] == id_]
-            res = pd.concat([res, row], ignore_index=True)
+            curr_category = row['category'].values
+
+            if curr_category in chosen_categories_copy:
+                res = pd.concat([res, row], ignore_index=True)
+                chosen_categories_copy.remove(curr_category)
+            if len(chosen_categories_copy) == 0:
+                break
 
         return res
+
