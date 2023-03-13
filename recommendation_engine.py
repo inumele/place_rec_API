@@ -9,7 +9,7 @@ def distance(point1, point2):
     return math.sqrt((point2[0] - point1[0]) ** 2 + (point2[1] - point1[1]) ** 2)
 
 def to_list(inp):
-    res = [float(coord) for coord in inp[1:len(inp)-1].split(', ')]
+    res = [float(coord) for coord in reversed(inp[1:len(inp)-1].split(', '))]
 
     return res
 
@@ -41,15 +41,17 @@ class RecommendationEngine:
 
         recs = pd.DataFrame(similar_places.sum().sort_values(ascending=False), columns=['sim_kf'])
         recs = pd.merge(recs, self.places[['place_id', 'coords']], on='place_id').set_index('place_id')
+
         recs['coords'] = recs['coords'].apply(to_list)
+
         recs['distance'] = recs['coords'].apply(distance, args=[user_coords])
 
         min_max_scaler = preprocessing.MinMaxScaler()
-        recs[['sim_kf', 'distance']] = min_max_scaler.fit_transform(recs[['sim_kf', 'distance']])
+        recs['sim_kf'] = min_max_scaler.fit_transform(np.array(recs['sim_kf']).reshape(-1, 1))
 
         print(recs.sort_values(by='distance').head(100))
 
-        recs['sim_kf'] = recs['sim_kf'] - recs['distance']
+        recs['sim_kf'] = recs['sim_kf'] / recs['distance']
         recs = recs.drop(columns=['coords', 'distance']).sort_values(by='sim_kf', ascending=False)
 
         print(recs.sort_values(by='sim_kf', ascending=False).head(100))

@@ -9,6 +9,6 @@ person_ratings = [
     (356, 5)
 ]
 
-res = RecommendationEngine('people_ratings.csv', 'places.csv').get_places(person_ratings, [70.674798, 6.448295])
+res = RecommendationEngine('people_ratings.csv', 'places.csv').get_places(person_ratings, [55.823713, 49.059503])
 print(res.head(50))
 
